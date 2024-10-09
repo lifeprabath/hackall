@@ -1,0 +1,110 @@
+// Define input parameters
+input double lotSize = 0.1;        // Default lot size for each trade
+input int smaPeriod = 50;          // Period for SMA
+input int atrPeriod = 5;           // Period for ATR
+input double atrMultiplier = 3.5;  // ATR multiplier for confirmation
+input double vwapMultiplier = 1.0; // Multiplier for VWAP confirmation
+input int timeframe = 0;
+input ENUM_TIMEFRAMES candleTimeframe = PERIOD_H1; // Timeframe for candle crossing
+input int MODE_MARGINPERLOT = 73;  // Margin per lot
+
+// Define trading function
+void OnTick()
+{
+    double vwap = iCustom(ChartSymbol(), 0, "VWAP", 0, 0);
+    double sma = iMA(ChartSymbol(), 0, smaPeriod, 0, MODE_SMA, PRICE_CLOSE, 0);
+    double atr = iATR(ChartSymbol(), timeframe, atrPeriod, 0);
+
+    // Declare lotSizeCalculated variables at the beginning of the function
+    double lotSizeCalculated;
+    double lotSizeCalculatedSell;
+
+    if (TimeHour(TimeCurrent()) == 12 && TimeMinute(TimeCurrent()) == 0)
+    {
+        // Print debug information
+        Print("Close[0]: ", Close[0]);
+        Print("VWAP: ", vwap);
+        Print("SMA: ", sma);
+        Print("ATR: ", atr);
+
+        // Check for Buy condition
+        if (Close[0] > vwap * vwapMultiplier && Close[0] > sma && atr > 0 && iATR(ChartSymbol(), timeframe, atrPeriod, 0) < Close[1])
+        {
+            // Check if the current candle closes above the ATR on the specified timeframe
+            if (Close[0] > iATR(ChartSymbol(), candleTimeframe, atrPeriod, 0))
+            {
+                // Calculate lot size based on ATR
+                double marginPerLot = MarketInfo(ChartSymbol(), MODE_MARGINPERLOT);
+
+                // Check if marginPerLot is not zero before dividing
+                if (marginPerLot != 0)
+                {
+                    lotSizeCalculated = MarketInfo(ChartSymbol(), MODE_MARGINREQUIRED) / marginPerLot;
+                }
+                else
+                {
+                    // Handle the division by zero error or take appropriate action
+                    Print("Error: Division by zero (MODE_MARGINPERLOT is zero)");
+                    return; // Exit the function to avoid further processing
+                }
+
+                // Use the manually adjusted lot size if provided
+                if (lotSize > 0.0)
+                {
+                    lotSizeCalculated = lotSize;
+                }
+
+                // Open a buy trade
+                int buyOrder = OrderSend(ChartSymbol(), OP_BUY, lotSizeCalculated, Ask, 2, 0, 0, "", 0, clrNONE);
+                if (buyOrder > 0)
+                {
+                    Print("Buy order opened successfully");
+                }
+                else
+                {
+                    Print("Error opening buy order: ", GetLastError());
+                }
+            }
+        }
+
+        // Check for Sell condition
+        if (Close[0] < vwap * vwapMultiplier && Close[0] < sma && atr > 0 && iATR(ChartSymbol(), timeframe, atrPeriod, 0) > Close[1])
+        {
+            // Check if the current candle closes below the ATR on the specified timeframe
+            if (Close[0] < iATR(ChartSymbol(), candleTimeframe, atrPeriod, 0))
+            {
+                // Calculate lot size based on ATR
+                double marginPerLotSell = MarketInfo(ChartSymbol(), MODE_MARGINPERLOT);
+
+                // Check if marginPerLotSell is not zero before dividing
+                if (marginPerLotSell != 0)
+                {
+                    lotSizeCalculatedSell = MarketInfo(ChartSymbol(), MODE_MARGINREQUIRED) / marginPerLotSell;
+                }
+                else
+                {
+                    // Handle the division by zero error or take appropriate action
+                    Print("Error: Division by zero (MODE_MARGINPERLOT is zero)");
+                    return; // Exit the function to avoid further processing
+                }
+
+                // Use the manually adjusted lot size if provided
+                if (lotSize > 0.0)
+                {
+                    lotSizeCalculatedSell = lotSize;
+                }
+
+                // Open a sell trade
+                int sellOrder = OrderSend(ChartSymbol(), OP_SELL, lotSizeCalculatedSell, Bid, 2, 0, 0, "", 0, clrNONE);
+                if (sellOrder > 0)
+                {
+                    Print("Sell order opened successfully");
+                }
+                else
+                {
+                    Print("Error opening sell order: ", GetLastError());
+                }
+            }
+        }
+    }
+}
